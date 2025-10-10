@@ -5,51 +5,34 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 )
 
+// ScriptRegistry maps script names to their Run functions
+var ScriptRegistry = map[string]func() error{
+	// "pkg1/script1": pkg1.Script1Run,
+}
+
 func main() {
-	scriptPath := flag.String("script", "", "Script to run (e.g., pkg1/script1.go)")
+	scriptName := flag.String("script", "", "Script to run (e.g., pkg1/script1)")
 	flag.Parse()
 
-	if *scriptPath == "" {
+	if *scriptName == "" {
 		fmt.Println("❌ Error: --script flag is required")
-		fmt.Println("\nUsage:")
-		fmt.Println("  go run main.go --script=pkg1/script1.go")
+		printAvailableScripts()
 		os.Exit(1)
 	}
 
-	// Ensure .go extension
-	if !strings.HasSuffix(*scriptPath, ".go") {
-		*scriptPath = *scriptPath + ".go"
-	}
-
-	// Check if file exists
-	if _, err := os.Stat(*scriptPath); os.IsNotExist(err) {
-		fmt.Printf("❌ Error: Script file not found: %s\n", *scriptPath)
+	scriptFunc, exists := ScriptRegistry[*scriptName]
+	if !exists {
+		fmt.Printf("❌ Error: Unknown script '%s'\n", *scriptName)
+		printAvailableScripts()
 		os.Exit(1)
 	}
 
-	// Get absolute path
-	absPath, err := filepath.Abs(*scriptPath)
-	if err != nil {
-		fmt.Printf("❌ Error: Failed to resolve path: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("🚀 Running script: %s\n", *scriptPath)
+	fmt.Printf("🚀 Running script: %s\n", *scriptName)
 	fmt.Println("─────────────────────────────────────────")
 
-	// Execute: go run <script_path> Run
-	// The "Run" argument tells the script to execute its Run() function
-	cmd := exec.Command("go", "run", absPath)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Env = os.Environ()
-
-	if err := cmd.Run(); err != nil {
+	if err := scriptFunc(); err != nil {
 		fmt.Println("─────────────────────────────────────────")
 		fmt.Printf("❌ Script failed: %v\n", err)
 		os.Exit(1)
@@ -57,4 +40,13 @@ func main() {
 
 	fmt.Println("─────────────────────────────────────────")
 	fmt.Println("✅ Script completed successfully")
+}
+
+func printAvailableScripts() {
+	fmt.Println("\n📋 Available scripts:")
+	for name := range ScriptRegistry {
+		fmt.Printf("  • %s\n", name)
+	}
+	fmt.Println("\nUsage:")
+	fmt.Println("  go run main.go --script=pkg1/script1")
 }
